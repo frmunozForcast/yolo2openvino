@@ -105,9 +105,9 @@ def main(argv=None):
     print(f"Anchors: {anchors}")
     print(f"Masks: {masks}")
     if is_tiny:
-        print(f"3 yolo layers: {three_yolo}")
+        print("3 yolo layers: {}".format(config.get("use_tiny_3l", False)))
     else:
-        print(f"small_objects: {small_objects}")
+        print("optimize small_objects: {}".format(config.get("optimize_small_objects", False)))
     print(f"Shape: {inputs}")
     print(f"Classes: {num_classes}")
 
