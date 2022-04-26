@@ -42,6 +42,7 @@ Supported flags:
 * `-h`, `--height`: input image height; `--width` must also be set with this flag,
 * `-w`, `--width`: input image width; `--height` must also be set with this flag,
 * `-a`, `--anchors`: list of anchors; if not set default anchors available in [utils/anchors.py](https://github.com/luxonis/yolo2openvino/blob/main/utils/utils.py) will be used. Anchors must be integers provided in the correct order, separated by `,` without spaces. See the second example in [examples](#examples).
+* `--config`: path to a config file used for custom YoloV4 models. 
 
 #### Examples
 
@@ -65,6 +66,55 @@ python convert_weights_pb.py \
 -h 320 \
 -w 512 \
 -a 10,14,23,27,37,58,81,82,135,169,344,319
+```
+3. Conversion of YoloV4 model with custom shapes, classes, anchors and masks.
+    
+    It needs a `config.json` file specifying the custom values (example):
+
+    ```json
+    {
+      "yolo": 4,
+      "tiny": false,
+      "classes": 1,
+      "anchors": [10, 10,  16, 10,  16, 16,  22, 12,  23, 19,  33, 18,  30, 27,  45, 30,  59, 44, 60, 60],
+      "masks": [[8,9], [6,7], [0, 1, 2, 4, 5]],
+      "height": 416,
+      "width": 416,
+      "optimize_small_objects": true
+    }
+    ```
+   where `optimize_small_objects` will modify the network according to this [Darknet guide](https://github.com/AlexeyAB/darknet#how-to-improve-object-detection). You can set to `false` to use the default network. The execution script will be
+
+```python
+python convert_weights_pb.py \
+--weights_file yolov4_best.weights \
+--output yolov4.pb \
+--config configs/yolo_v4_custom.json
+```
+4. Conversion of YoloV4-tiny model with 3-yolo layers (model config is [yolov4-tiny-3l.cfg](https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov4-tiny-3l.cfg))
+
+    In this case, It need the following custom values (example):
+
+    ```json
+    {
+      "yolo": 4,
+      "tiny": true,
+      "classes": 1,
+      "anchors": [10, 10,  16, 10,  16, 16,  22, 12,  23, 19,  33, 18,  30, 27,  45, 30,  59, 44, 60, 60],
+      "masks": [[8,9], [6,7], [0, 1, 2, 4, 5]],
+      "height": 416,
+      "width": 416,
+      "use_tiny_3l": true
+    }   
+   ```
+   
+    where `use_tiny_3l` will tell to the model to use 3 yolo layers instead of 2 when building the network. The execution script will be
+
+```python
+python convert_weights_pb.py \
+--weights_file yolov4-tiny_best.weights \
+--output yolov4tiny.pb \
+--config configs/yolo_v4_tiny_custom.json
 ```
 
 #### Anchors
