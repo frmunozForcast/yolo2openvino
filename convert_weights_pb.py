@@ -49,37 +49,37 @@ def main(argv=None):
         config = json.load(open(FLAGS.config, "r"))
     else:
         config = {}
-    yolo_version = config.get("yolo", FLAGS.yolo)
-    is_tiny = config.get("tiny", FLAGS.tiny)
+    yolo_version = config.pop("yolo", FLAGS.yolo)
+    is_tiny = config.pop("tiny", FLAGS.tiny)
     if yolo_version == 3:
         if is_tiny:
             model = yolo_v3_tiny.yolo_v3_tiny
             default_anchors = Anchors.YOLOV3TINY.value
-            masks = config.get("masks", Masks.YOLOV3TINY.value)
+            masks = config.pop("masks", Masks.YOLOV3TINY.value)
         else:
             model = yolo_v3.yolo_v3
             default_anchors = Anchors.YOLOV3.value
-            masks = config.get("masks", Masks.YOLOV3.value)
+            masks = config.pop("masks", Masks.YOLOV3.value)
     elif yolo_version == 4:
         if is_tiny:
             model = yolo_v4_tiny.yolo_v4_tiny
             default_anchors = Anchors.YOLOV4TINY.value
-            masks = config.get("masks", Masks.YOLOV4TINY.value)
+            masks = config.pop("masks", Masks.YOLOV4TINY.value)
         else:
             model = yolo_v4.yolo_v4
             default_anchors = Anchors.YOLOV4.value
-            masks = config.get("masks", Masks.YOLOV4.value)
+            masks = config.pop("masks", Masks.YOLOV4.value)
     else:
         raise ValueError(f"{yolo_version} is not supported Yolo version. Supported versions: 3, 4.")
 
-    input_anchors = config.get("anchors", FLAGS.anchors)
+    input_anchors = config.pop("anchors", FLAGS.anchors)
     selected_anchors = default_anchors if input_anchors is None else [int(a) for a in input_anchors]
     anchors = [(selected_anchors[i * 2], selected_anchors[i * 2 + 1]) for i in range(len(selected_anchors) // 2)]
 
-    num_classes = config.get("classes", len(load_names(FLAGS.class_names)))
-    height = config.get("height", FLAGS.height)
-    width = config.get("width", FLAGS.width)
-    size = config.get("size", FLAGS.size)
+    num_classes = config.pop("classes", len(load_names(FLAGS.class_names)))
+    height = config.pop("height", FLAGS.height)
+    width = config.pop("width", FLAGS.width)
+    size = config.pop("size", FLAGS.size)
 
     # set input shape
     if height is not None and width is not None:

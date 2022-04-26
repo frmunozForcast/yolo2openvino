@@ -44,7 +44,7 @@ def yolo_v4_tiny(inputs, num_classes, anchors, masks, is_training=False, data_fo
     """
     # if True, define the net with 3 yolo layers, following the custom model included in darknet
     # https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov4-tiny-3l.cfg
-    three_yolo = kwargs.get("three_yolo", False)
+    use_tiny_3l = kwargs.get("use_tiny_3l", False)
     # it will be needed later on
     img_size = inputs.get_shape().as_list()[1:3]
 
@@ -104,7 +104,7 @@ def yolo_v4_tiny(inputs, num_classes, anchors, masks, is_training=False, data_fo
                         net, num_classes, anchors[masks[1][0]:masks[1][-1] + 1], img_size, data_format)
                     detect_2 = tf.identity(detect_2, name='detect_2')
 
-                    if three_yolo:
+                    if use_tiny_3l:
                         # yolo layer 3
                         net = _conv2d_fixed_padding(route2, 64, kernel_size=1)
                         upsample_size = feat3.get_shape().as_list()
