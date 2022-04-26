@@ -26,9 +26,9 @@ def _tiny_res_block(inputs,in_channels,data_format):
     return net, feat
 
 
-def yolo_v4_tiny(inputs, num_classes, anchors, is_training=False, data_format='NCHW', reuse=False):
+def yolo_v4_tiny(inputs, num_classes, anchors, masks, is_training=False, data_format='NCHW', reuse=False, **kwargs):
     """
-    Creates YOLO v4 tiny model.
+    Creates YOLO v4 model.
 
     :param inputs: a 4-D tensor of size [batch_size, height, width, channels].
         Dimension batch_size may be undefined. The channel order is RGB.
@@ -37,8 +37,14 @@ def yolo_v4_tiny(inputs, num_classes, anchors, is_training=False, data_format='N
     :param is_training: whether is training or not.
     :param data_format: data format NCHW or NHWC.
     :param reuse: whether or not the network and its variables should be reused.
+    :param with_spp: whether or not is using spp layer.
+    :param masks: list specifying masks in the form [[3,4,5], [0,1,2]]
+    :param kwargs: additional kwargs for custom yolo v4
     :return:
     """
+    # if True, define the net with 3 yolo layers, following the custom model included in darknet
+    # https://github.com/AlexeyAB/darknet/blob/master/cfg/yolov4-tiny-3l.cfg
+    three_yolo = kwargs.get("three_yolo", False)
     # it will be needed later on
     img_size = inputs.get_shape().as_list()[1:3]
 
@@ -66,37 +72,51 @@ def yolo_v4_tiny(inputs, num_classes, anchors, is_training=False, data_format='N
                                 normalizer_params=batch_norm_params,
                                 biases_initializer=None,
                                 activation_fn=lambda x: tf.nn.leaky_relu(x, alpha=_LEAKY_RELU)):
-
                 with tf.variable_scope('yolo-v4-tiny'):
                     #CSPDARKENT BEGIN
-                    net = _conv2d_fixed_padding(inputs,32,kernel_size=3,strides=2)
+                    net = _conv2d_fixed_padding(inputs, 32, kernel_size=3, strides=2)  # layer 1
 
-                    net = _conv2d_fixed_padding(net, 64, kernel_size=3,strides=2)
+                    net = _conv2d_fixed_padding(net, 64, kernel_size=3, strides=2)  # layer 2
 
-                    net,_ = _tiny_res_block(net,64,data_format)
-                    net,_ = _tiny_res_block(net,128,data_format)
-                    net,feat = _tiny_res_block(net,256,data_format)
-                    net = _conv2d_fixed_padding(net,512,kernel_size=3)
-                    feat2=net
+                    net, _ = _tiny_res_block(net, 64, data_format)  # layers 3-10
+                    net, feat3 = _tiny_res_block(net, 128, data_format)  # layers 11-18, feat3 = 15
+                    net, feat = _tiny_res_block(net, 256, data_format)  # layers 19-26, feat = 23
+                    net = _conv2d_fixed_padding(net, 512, kernel_size=3)  # layer 27
+                    feat2 = net
                     #CSPDARKNET END
 
-                    net=_conv2d_fixed_padding(feat2,256,kernel_size=1)
+                    # yolo layer 1
+                    net = _conv2d_fixed_padding(feat2, 256, kernel_size=1)
                     route = net
-                    net = _conv2d_fixed_padding(route,512,kernel_size=3)
+                    net = _conv2d_fixed_padding(route, 512, kernel_size=3)
                     detect_1 = _detection_layer(
-                        net, num_classes, anchors[3:6], img_size, data_format)
+                        net, num_classes, anchors[masks[0][0]:masks[0][-1] + 1], img_size, data_format)
                     detect_1 = tf.identity(detect_1, name='detect_1')
-                    net = _conv2d_fixed_padding(route,128,kernel_size=1)
+
+                    # yolo layer 2
+                    net = _conv2d_fixed_padding(route, 128, kernel_size=1)
                     upsample_size = feat.get_shape().as_list()
                     net = _upsample(net, upsample_size, data_format)
-                    net = tf.concat([net,feat], axis=1 if data_format == 'NCHW' else 3)
-                    net = _conv2d_fixed_padding(net,256,kernel_size=3)
+                    net = tf.concat([net, feat], axis=1 if data_format == 'NCHW' else 3)
+                    net = _conv2d_fixed_padding(net, 256, kernel_size=3)
+                    route2 = net
                     detect_2 = _detection_layer(
-                        net, num_classes, anchors[0:3], img_size, data_format)
+                        net, num_classes, anchors[masks[1][0]:masks[1][-1] + 1], img_size, data_format)
                     detect_2 = tf.identity(detect_2, name='detect_2')
 
+                    if three_yolo:
+                        # yolo layer 3
+                        net = _conv2d_fixed_padding(route2, 64, kernel_size=1)
+                        upsample_size = feat3.get_shape().as_list()
+                        net = _upsample(net, upsample_size, data_format)
+                        net = tf.concat([net, feat3], axis=1 if data_format == 'NCHW' else 3)
+                        net = _conv2d_fixed_padding(net, 128, kernel_size=3)
+                        detect_3 = _detection_layer(
+                            net, num_classes, anchors[masks[2][0]:masks[2][-1] + 1], img_size, data_format)
+                        detect_3 = tf.identity(detect_3, name='detect_3')
+                        detections = tf.concat([detect_1, detect_2, detect_3], axis=1)
 
-                    detections = tf.concat([detect_1, detect_2], axis=1)
+                    else:
+                        detections = tf.concat([detect_1, detect_2], axis=1)
                     detections = tf.identity(detections, name='detections')
-
                     return detections
