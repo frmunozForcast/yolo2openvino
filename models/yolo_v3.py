@@ -66,7 +66,7 @@ def _yolo_block(inputs, filters, data_format='NCHW', with_spp=False):
     return route, inputs
 
 
-def yolo_v3(inputs, num_classes, anchors, is_training=False, data_format='NCHW', reuse=False, with_spp=False):
+def yolo_v3(inputs, num_classes, anchors, masks, is_training=False, data_format='NCHW', reuse=False, with_spp=False, **kwargs):
     """
     Creates YOLO v3 model.
 

@@ -7,7 +7,7 @@ _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-05
 _LEAKY_RELU = 0.1
 
-def yolo_v3_tiny(inputs, num_classes, anchors, is_training=False, data_format='NCHW', reuse=False):
+def yolo_v3_tiny(inputs, num_classes, anchors, masks, is_training=False, data_format='NCHW', reuse=False, **kwargs):
     """
     Creates YOLO v3 tiny model.
 
