@@ -3,6 +3,8 @@ from models import yolo_v3, yolo_v3_tiny, yolo_v4, yolo_v4_tiny
 
 from utils.utils import load_weights, load_names, detections_boxes, freeze_graph
 from utils.anchors import Anchors
+from utils.masks import Masks
+import json
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -36,55 +38,78 @@ tf.app.flags.DEFINE_list(
     'anchors', None, 'List of anchors. If not set default anchors for YoloV3, YoloV4, and YoloV3/V4-tiny will be set.',
     short_name='a'
 )
+tf.app.flags.DEFINE_string(
+    'config', None, 'config file used for defining the network. It can replace the FLAGS inputs.'
+)
 
 
 def main(argv=None):
 
-    if FLAGS.yolo == 3:
-        if FLAGS.tiny:
+    if FLAGS.config is not None:
+        config = json.load(open(FLAGS.config, "r"))
+    else:
+        config = {}
+    yolo_version = config.get("yolo", FLAGS.yolo)
+    is_tiny = config.get("tiny", FLAGS.tiny)
+    if yolo_version == 3:
+        if is_tiny:
             model = yolo_v3_tiny.yolo_v3_tiny
             default_anchors = Anchors.YOLOV3TINY.value
+            masks = config.get("masks", Masks.YOLOV3TINY.value)
         else:
             model = yolo_v3.yolo_v3
             default_anchors = Anchors.YOLOV3.value
-    elif FLAGS.yolo == 4:
-        if FLAGS.tiny:
+            masks = config.get("masks", Masks.YOLOV3.value)
+    elif yolo_version == 4:
+        if is_tiny:
             model = yolo_v4_tiny.yolo_v4_tiny
             default_anchors = Anchors.YOLOV4TINY.value
+            masks = config.get("masks", Masks.YOLOV4TINY.value)
         else:
             model = yolo_v4.yolo_v4
             default_anchors = Anchors.YOLOV4.value
+            masks = config.get("masks", Masks.YOLOV4.value)
     else:
-        raise ValueError(f"{FLAGS.yolo} is not supported Yolo version. Supported versions: 3, 4.")
+        raise ValueError(f"{yolo_version} is not supported Yolo version. Supported versions: 3, 4.")
 
-    print(FLAGS.anchors)
-    selected_anchors = default_anchors if FLAGS.anchors is None else [int(a) for a in FLAGS.anchors]
-    anchors = [(selected_anchors[i*2], selected_anchors[i*2+1]) for i in range(len(selected_anchors)//2)]
+    input_anchors = config.get("anchors", FLAGS.anchors)
+    selected_anchors = default_anchors if input_anchors is None else [int(a) for a in input_anchors]
+    anchors = [(selected_anchors[i * 2], selected_anchors[i * 2 + 1]) for i in range(len(selected_anchors) // 2)]
 
-    classes = load_names(FLAGS.class_names)
+    num_classes = config.get("classes", len(load_names(FLAGS.class_names)))
+    height = config.get("height", FLAGS.height)
+    width = config.get("width", FLAGS.width)
+    size = config.get("size", FLAGS.size)
 
     # set input shape
-    if FLAGS.height is not None and FLAGS.width is not None:
-        inputs = tf.placeholder(tf.float32, [None, FLAGS.height, FLAGS.width, 3], "inputs")
-        if FLAGS.size is not None:
+    if height is not None and width is not None:
+        inputs = tf.placeholder(tf.float32, [None, height, width, 3], "inputs")
+        if size is not None:
             print("Width and height are set, size flag will be ignored!")
-    elif FLAGS.size is not None:
-        inputs = tf.placeholder(tf.float32, [None, FLAGS.size, FLAGS.size, 3], "inputs")
+    elif size is not None:
+        inputs = tf.placeholder(tf.float32, [None, size, size, 3], "inputs")
     else:
-        print("Neither size nor width and height flags are set. Please specify input shape!")
+        raise ValueError("width/height are not set. Please specify input shape on config file!")
 
     with tf.variable_scope('detector'):
-        detections = model(inputs, len(classes), anchors, data_format=FLAGS.data_format)
+        # masks and **config only works on YoloV4 models, on YoloV3 it does nothing
+        detections = model(inputs, num_classes, anchors, masks, data_format=FLAGS.data_format, **config)
         load_ops = load_weights(tf.global_variables(scope='detector'), FLAGS.weights_file)
 
     # Sets the output nodes in the current session
     boxes = detections_boxes(detections)
 
     print("Starting conversion with the following parameters:")
-    print(f"Yolo version: {FLAGS.yolo}")
+    print(f"Yolo version: {yolo_version}")
+    print(f"Tiny: {is_tiny}")
     print(f"Anchors: {anchors}")
+    print(f"Masks: {masks}")
+    if is_tiny:
+        print(f"3 yolo layers: {three_yolo}")
+    else:
+        print(f"small_objects: {small_objects}")
     print(f"Shape: {inputs}")
-    print(f"Classes: {classes}")
+    print(f"Classes: {num_classes}")
 
     with tf.Session() as sess:
         sess.run(load_ops)
